@@ -1,0 +1,45 @@
+name: Testes Playwright
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Toda segunda às 9h (Brasília): o app de demonstração é externo e pode mudar sem aviso.
+    - cron: '0 12 * * 1'
+  workflow_dispatch:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, firefox, mobile]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Checagem de tipos
+        run: npm run typecheck
+
+      - name: Instalar navegador
+        run: npx playwright install --with-deps ${{ matrix.project == 'firefox' && 'firefox' || 'chromium' }}
+
+      - name: Rodar testes (${{ matrix.project }})
+        run: npx playwright test --project=${{ matrix.project }}
+
+      - name: Guardar relatório
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-${{ matrix.project }}
+          path: playwright-report/
+          retention-days: 14
